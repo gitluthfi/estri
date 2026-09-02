@@ -1,0 +1,46 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: estri
+      POSTGRES_PASSWORD: estri
+      POSTGRES_DB: estri
+    ports:
+      - "5432:5432"
+    volumes:
+      - estri_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U estri"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build:
+      context: .
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PORT: 8080
+      ENVIRONMENT: development
+      DATABASE_URL: postgres://estri:estri@postgres:5432/estri?sslmode=disable
+      JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret-change-me}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-dev-encryption-key-change-me}
+      COOKIE_SECURE: "false"
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@estri.local}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-changeme123}
+      # Uncomment to reach real AWS from your local machine via static keys
+      # or your own `aws sso`/`~/.aws/credentials` profile picked up by the
+      # default SDK chain (mount ~/.aws read-only if you want IRSA-like local
+      # testing against a real assumable role).
+      # AWS_ACCESS_KEY_ID: ...
+      # AWS_SECRET_ACCESS_KEY: ...
+    ports:
+      - "8080:8080"
+
+volumes:
+  estri_postgres_data:

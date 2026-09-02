@@ -1,0 +1,61 @@
+# Ingress using the AWS Load Balancer Controller (ALB Ingress Controller).
+# Install it first: https://kubernetes-sigs.github.io/aws-load-balancer-controller/
+#
+# estri is a single monolithic Service (API + UI in one process), so the ALB
+# just routes everything to it — no path-splitting needed.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: estri
+  namespace: estri
+  labels:
+    app.kubernetes.io/name: estri
+  annotations:
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443}, {"HTTP":80}]'
+    alb.ingress.kubernetes.io/ssl-redirect: "443"
+    # Replace with your ACM certificate ARN.
+    alb.ingress.kubernetes.io/certificate-arn: "arn:aws:acm:REGION:ACCOUNT_ID:certificate/CERT_ID"
+    alb.ingress.kubernetes.io/healthcheck-path: /healthz
+spec:
+  rules:
+    - host: estri.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: estri
+                port:
+                  number: 8080
+---
+# --- Generic nginx-ingress alternative ---
+# If you're not on EKS/ALB, use this instead (delete the resource above):
+#
+# apiVersion: networking.k8s.io/v1
+# kind: Ingress
+# metadata:
+#   name: estri
+#   namespace: estri
+#   annotations:
+#     nginx.ingress.kubernetes.io/proxy-body-size: "512m"
+#     cert-manager.io/cluster-issuer: letsencrypt-prod
+# spec:
+#   ingressClassName: nginx
+#   tls:
+#     - hosts: ["estri.example.com"]
+#       secretName: estri-tls
+#   rules:
+#     - host: estri.example.com
+#       http:
+#         paths:
+#           - path: /
+#             pathType: Prefix
+#             backend:
+#               service:
+#                 name: estri
+#                 port:
+#                   number: 8080
