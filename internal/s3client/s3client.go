@@ -49,10 +49,11 @@ func (f *Factory) ClientFor(ctx context.Context, cred *models.AWSCredential) (*s
 		return c, nil
 	}
 
-	client, err := f.build(ctx, cred)
+	cfg, err := f.ConfigFor(ctx, cred)
 	if err != nil {
 		return nil, err
 	}
+	client := s3.NewFromConfig(cfg)
 	f.cache[cacheKey] = client
 	return client, nil
 }
@@ -62,23 +63,27 @@ func (f *Factory) Invalidate(credentialID string) {
 	delete(f.cache, credentialID)
 }
 
-func (f *Factory) build(ctx context.Context, cred *models.AWSCredential) (*s3.Client, error) {
+// ConfigFor resolves the aws.Config for a credential profile according to
+// its auth method, without wrapping it in an S3 client. This is what
+// ClientFor uses internally, and it's also what powers the "test connection"
+// diagnostic (which talks to STS, not S3) exposed via the admin API.
+func (f *Factory) ConfigFor(ctx context.Context, cred *models.AWSCredential) (aws.Config, error) {
 	switch cred.AuthMethod {
 	case models.AuthMethodIRSA:
 		cfg, err := awsconfig.LoadDefaultConfig(ctx, awsconfig.WithRegion(cred.Region))
 		if err != nil {
-			return nil, fmt.Errorf("loading default AWS config (IRSA): %w", err)
+			return aws.Config{}, fmt.Errorf("loading default AWS config (IRSA): %w", err)
 		}
-		return s3.NewFromConfig(cfg), nil
+		return cfg, nil
 
 	case models.AuthMethodAssumeRole:
 		if cred.RoleARN == "" {
-			return nil, fmt.Errorf("credential %q: role_arn is required for assume_role", cred.Name)
+			return aws.Config{}, fmt.Errorf("credential %q: role_arn is required for assume_role", cred.Name)
 		}
 
 		baseCfg, err := f.baseConfig(ctx, cred)
 		if err != nil {
-			return nil, err
+			return aws.Config{}, err
 		}
 
 		stsClient := sts.NewFromConfig(baseCfg)
@@ -93,12 +98,12 @@ func (f *Factory) build(ctx context.Context, cred *models.AWSCredential) (*s3.Cl
 			}
 		})
 		baseCfg.Credentials = aws.NewCredentialsCache(provider)
-		return s3.NewFromConfig(baseCfg), nil
+		return baseCfg, nil
 
 	case models.AuthMethodStaticKeys:
 		accessKey, secretKey, err := f.decryptKeys(cred)
 		if err != nil {
-			return nil, err
+			return aws.Config{}, err
 		}
 		cfg, err := awsconfig.LoadDefaultConfig(ctx,
 			awsconfig.WithRegion(cred.Region),
@@ -107,12 +112,12 @@ func (f *Factory) build(ctx context.Context, cred *models.AWSCredential) (*s3.Cl
 			),
 		)
 		if err != nil {
-			return nil, fmt.Errorf("loading static AWS config: %w", err)
+			return aws.Config{}, fmt.Errorf("loading static AWS config: %w", err)
 		}
-		return s3.NewFromConfig(cfg), nil
+		return cfg, nil
 
 	default:
-		return nil, fmt.Errorf("unsupported auth method %q", cred.AuthMethod)
+		return aws.Config{}, fmt.Errorf("unsupported auth method %q", cred.AuthMethod)
 	}
 }
 

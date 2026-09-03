@@ -6,6 +6,7 @@ import Browser from "./pages/Browser";
 import AdminUsers from "./pages/admin/Users";
 import AdminCredentials from "./pages/admin/Credentials";
 import AdminBuckets from "./pages/admin/Buckets";
+import AdminAuditLog from "./pages/admin/AuditLog";
 
 export default function App() {
   return (
@@ -47,6 +48,16 @@ export default function App() {
           <ProtectedRoute requireRole="admin">
             <Layout>
               <AdminBuckets />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/audit-log"
+        element={
+          <ProtectedRoute requireRole="admin">
+            <Layout>
+              <AdminAuditLog />
             </Layout>
           </ProtectedRoute>
         }

@@ -126,10 +126,82 @@ Everything AWS-related is managed from **Admin → AWS Credentials** (admin role
    - For **Static Keys**, paste the access key / secret key — they're AES-256-GCM encrypted
      with `ENCRYPTION_KEY` before being written to Postgres and are never sent back to the
      browser once saved (edit screens only let you replace them, not view them).
+   - Use the **Test connection** button on each credential card to confirm it resolves to a
+     working AWS identity (via STS `GetCallerIdentity`) before wiring any bucket to it — this
+     checks that role assumption itself works, independently of whether the resulting
+     identity actually has S3 permissions on a given bucket.
 2. Go to **Admin → Buckets** and register a bucket name + region, bound to one of your
    credential profiles.
 3. Go to **Admin → Users** to grant `dev` accounts access to specific buckets, with
    independent write/delete toggles. Admins can always browse every registered bucket.
+
+### Common setup: one main account, S3 buckets in several other accounts
+
+A typical deployment: estri runs in a main/tooling AWS account, but the S3 buckets it needs
+to browse live in separate AWS accounts (per team, per environment, etc). This is exactly
+what the **Assume Role** auth method is for — estri's own pod identity (IRSA, in the main
+account) is the *base* identity, and each credential profile assumes a role in one target
+account:
+
+```
+Main account (estri pod, IRSA role e.g. "estri-irsa")
+   │  sts:AssumeRole
+   ├──► Account B   role "estri-s3-access"  ──► bucket-b
+   ├──► Account C   role "estri-s3-access"  ──► bucket-c
+   └──► Account D   role "estri-s3-access"  ──► bucket-d
+```
+
+**1. IRSA role in the main account** (the one annotated on `k8s/serviceaccount.yaml`) only
+needs permission to assume the target roles — no S3 permissions of its own:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [{
+    "Effect": "Allow",
+    "Action": "sts:AssumeRole",
+    "Resource": [
+      "arn:aws:iam::<ACCOUNT_B_ID>:role/estri-s3-access",
+      "arn:aws:iam::<ACCOUNT_C_ID>:role/estri-s3-access",
+      "arn:aws:iam::<ACCOUNT_D_ID>:role/estri-s3-access"
+    ]
+  }]
+}
+```
+
+**2. In each target account**, create a role (e.g. `estri-s3-access`) whose trust policy
+allows the main account's IRSA role to assume it — an External ID is optional but recommended
+defense-in-depth against the "confused deputy" problem:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [{
+    "Effect": "Allow",
+    "Principal": { "AWS": "arn:aws:iam::<MAIN_ACCOUNT_ID>:role/estri-irsa" },
+    "Action": "sts:AssumeRole",
+    "Condition": { "StringEquals": { "sts:ExternalId": "<optional-shared-secret>" } }
+  }]
+}
+```
+
+...and a permissions policy scoped to just that account's bucket(s):
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [{
+    "Effect": "Allow",
+    "Action": ["s3:ListBucket", "s3:GetObject", "s3:PutObject", "s3:DeleteObject"],
+    "Resource": ["arn:aws:s3:::bucket-b", "arn:aws:s3:::bucket-b/*"]
+  }]
+}
+```
+
+**3. In estri**, create one `assume_role` credential per target account (Role ARN = that
+account's `estri-s3-access` role; leave access/secret key blank so it starts from the pod's
+IRSA identity), hit **Test connection** on each to confirm the assumed identity's account ID
+matches, then register each bucket under **Admin → Buckets** bound to the matching credential.
 
 ## Kubernetes deployment
 
@@ -180,7 +252,8 @@ Everything AWS-related is managed from **Admin → AWS Credentials** (admin role
 - `JWT_SECRET` signs session tokens; rotating it invalidates all active sessions.
 - Sessions are HttpOnly cookies (`COOKIE_SECURE=true` in production, HTTPS only).
 - Every login and mutating action (user/credential/bucket changes, uploads, deletes) is
-  recorded in the `audit_logs` table.
+  recorded in the `audit_logs` table and browsable at **Admin → Audit Log** (filterable by
+  action, paginated, admin-only).
 
 ## Database schema
 

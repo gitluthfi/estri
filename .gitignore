@@ -14,3 +14,4 @@ web/tsconfig.tsbuildinfo
 *.log
 .idea/
 .vscode/
+k8s/

@@ -55,3 +55,13 @@ export interface ObjectEntry {
   size: number;
   lastModified?: string;
 }
+
+export interface AuditLogEntry {
+  id: string;
+  userId?: string;
+  username: string;
+  action: string;
+  detail: string;
+  ipAddress: string;
+  createdAt: string;
+}

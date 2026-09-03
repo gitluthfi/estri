@@ -32,6 +32,7 @@ func NewRouter(cfg *config.Config, db *gorm.DB, jwtManager *auth.JWTManager, enc
 	credentialHandler := NewCredentialHandler(db, encryptor, factory)
 	bucketHandler := NewBucketHandler(db)
 	s3Handler := NewS3Handler(db, factory)
+	auditHandler := NewAuditHandler(db)
 
 	api := r.Group("/api")
 	{
@@ -75,10 +76,14 @@ func NewRouter(cfg *config.Config, db *gorm.DB, jwtManager *auth.JWTManager, enc
 				admin.POST("credentials", credentialHandler.Create)
 				admin.PUT("credentials/:id", credentialHandler.Update)
 				admin.DELETE("credentials/:id", credentialHandler.Delete)
+				admin.POST("credentials/:id/test", credentialHandler.Test)
 
 				admin.GET("buckets", bucketHandler.ListAll)
 				admin.POST("buckets", bucketHandler.Create)
 				admin.DELETE("buckets/:id", bucketHandler.Delete)
+
+				admin.GET("audit-logs", auditHandler.List)
+				admin.GET("audit-logs/actions", auditHandler.Actions)
 			}
 		}
 	}

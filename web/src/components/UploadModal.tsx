@@ -70,13 +70,15 @@ export function UploadModal({
           handleFilesSelected(e.dataTransfer.files);
         }}
         className={`flex flex-col items-center justify-center rounded-xl border-2 border-dashed px-6 py-10 text-center transition-colors ${
-          dragOver ? "border-brand-500 bg-brand-50" : "border-slate-200"
+          dragOver
+            ? "border-ember-400 bg-ember-50 dark:bg-ember-950/40"
+            : "border-paper-200 dark:border-paper-700"
         }`}
       >
-        <UploadIcon className="mb-2 text-slate-400" />
-        <p className="text-sm text-slate-500">
+        <UploadIcon className="mb-2 h-6 w-6 text-paper-400" />
+        <p className="text-sm text-paper-500 dark:text-paper-400">
           Drag & drop files here, or{" "}
-          <label className="cursor-pointer font-medium text-brand-600 hover:underline">
+          <label className="cursor-pointer font-medium text-ember-600 hover:underline dark:text-ember-400">
             browse
             <input
               type="file"
@@ -89,7 +91,9 @@ export function UploadModal({
             />
           </label>
         </p>
-        <p className="mt-1 text-xs text-slate-400">Uploading to /{prefix || ""}</p>
+        <p className="mt-1 font-mono text-xs text-paper-400 dark:text-paper-500">
+          Uploading to /{prefix || ""}
+        </p>
       </div>
 
       {items.length > 0 && (
@@ -97,15 +101,15 @@ export function UploadModal({
           {items.map((item, i) => (
             <div key={i} className="text-sm">
               <div className="flex justify-between">
-                <span className="truncate text-slate-700">{item.file.name}</span>
-                <span className="ml-2 shrink-0 text-slate-400">
+                <span className="truncate text-paper-700 dark:text-paper-200">{item.file.name}</span>
+                <span className="ml-2 shrink-0 font-mono text-xs text-paper-400 dark:text-paper-500">
                   {item.error ? "Failed" : item.done ? "Done" : `${item.progress}%`}
                 </span>
               </div>
-              <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
+              <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-paper-100 dark:bg-paper-800">
                 <div
                   className={`h-full rounded-full transition-all ${
-                    item.error ? "bg-red-500" : "bg-brand-500"
+                    item.error ? "bg-red-500" : "bg-ember-500"
                   }`}
                   style={{ width: `${item.progress}%` }}
                 />
@@ -117,10 +121,7 @@ export function UploadModal({
       )}
 
       <div className="mt-5 flex justify-end">
-        <button
-          onClick={onClose}
-          className="rounded-lg bg-slate-100 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200"
-        >
+        <button onClick={onClose} className="btn-secondary">
           Close
         </button>
       </div>

@@ -1,6 +1,11 @@
 import React, { useEffect, useState } from "react";
 import * as api from "../../api/endpoints";
 import { Modal } from "../../components/Modal";
+import { PageHeader } from "../../components/PageHeader";
+import { Skeleton } from "../../components/Skeleton";
+import { useToast } from "../../context/ToastContext";
+import { useConfirm } from "../../context/ConfirmContext";
+import { CheckIcon, KeyIcon, SpinnerIcon, WarningIcon } from "../../components/icons";
 import type { AWSAuthMethod, AWSCredential } from "../../types";
 
 const AUTH_METHOD_LABELS: Record<AWSAuthMethod, string> = {
@@ -9,12 +14,26 @@ const AUTH_METHOD_LABELS: Record<AWSAuthMethod, string> = {
   static_keys: "Static Access Key / Secret Key",
 };
 
+const AUTH_METHOD_BADGE: Record<AWSAuthMethod, string> = {
+  irsa: "bg-sky-50 text-sky-700 dark:bg-sky-950 dark:text-sky-300",
+  assume_role: "bg-violet-50 text-violet-700 dark:bg-violet-950 dark:text-violet-300",
+  static_keys: "bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300",
+};
+
+type TestState =
+  | { status: "testing" }
+  | { status: "success"; account: string; arn: string }
+  | { status: "error"; message: string };
+
 export default function AdminCredentials() {
   const [credentials, setCredentials] = useState<AWSCredential[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [showCreate, setShowCreate] = useState(false);
   const [editing, setEditing] = useState<AWSCredential | null>(null);
+  const [testResults, setTestResults] = useState<Record<string, TestState>>({});
+  const toast = useToast();
+  const confirm = useConfirm();
 
   const load = () => {
     setLoading(true);
@@ -28,81 +47,152 @@ export default function AdminCredentials() {
   useEffect(load, []);
 
   const remove = async (cred: AWSCredential) => {
-    if (!window.confirm(`Delete credential "${cred.name}"?`)) return;
+    const ok = await confirm({
+      title: `Delete credential "${cred.name}"?`,
+      description: "Any bucket still bound to it must be reassigned first.",
+      confirmLabel: "Delete",
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await api.adminDeleteCredential(cred.id);
+      toast.success(`Deleted ${cred.name}`);
       load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to delete credential");
+      toast.error("Failed to delete credential", err instanceof Error ? err.message : undefined);
+    }
+  };
+
+  const testConnection = async (cred: AWSCredential) => {
+    setTestResults((prev) => ({ ...prev, [cred.id]: { status: "testing" } }));
+    try {
+      const res = await api.adminTestCredential(cred.id);
+      setTestResults((prev) => ({
+        ...prev,
+        [cred.id]: { status: "success", account: res.account, arn: res.arn },
+      }));
+    } catch (err) {
+      setTestResults((prev) => ({
+        ...prev,
+        [cred.id]: {
+          status: "error",
+          message: err instanceof Error ? err.message : "Test failed",
+        },
+      }));
     }
   };
 
   return (
     <div className="p-6">
-      <div className="mb-5 flex items-center justify-between">
-        <div>
-          <h1 className="text-lg font-semibold text-slate-900">AWS Credentials</h1>
-          <p className="text-sm text-slate-500">
-            Admin-only. Connection profiles used to reach S3 — IRSA, Assume Role, or static
-            access keys (encrypted at rest).
-          </p>
-        </div>
-        <button onClick={() => setShowCreate(true)} className="btn-primary">
-          New credential
-        </button>
-      </div>
+      <PageHeader
+        icon={<KeyIcon className="h-5 w-5" />}
+        title="AWS Credentials"
+        description="Admin-only. Connection profiles used to reach S3 — IRSA, Assume Role, or static access keys (encrypted at rest)."
+        action={
+          <button onClick={() => setShowCreate(true)} className="btn-primary">
+            New credential
+          </button>
+        }
+      />
 
       {error && (
-        <div className="mb-4 rounded-lg bg-red-50 px-4 py-2.5 text-sm text-red-600">{error}</div>
+        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300">
+          {error}
+        </div>
       )}
 
       {loading ? (
-        <p className="text-sm text-slate-400">Loading…</p>
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="card space-y-3 p-4">
+              <Skeleton className="h-4 w-1/2" />
+              <Skeleton className="h-3 w-1/3" />
+              <Skeleton className="h-3 w-full" />
+            </div>
+          ))}
+        </div>
       ) : (
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
           {credentials.map((cred) => (
-            <div key={cred.id} className="rounded-xl border border-slate-200 bg-white p-4">
-              <div className="mb-2 flex items-start justify-between">
-                <div>
-                  <h3 className="font-semibold text-slate-800">{cred.name}</h3>
-                  {cred.isDefault && (
-                    <span className="mt-0.5 inline-block rounded-full bg-brand-50 px-2 py-0.5 text-xs font-medium text-brand-600">
-                      Default
-                    </span>
-                  )}
-                </div>
+            <div key={cred.id} className="card p-4">
+              <div className="mb-2 flex items-start justify-between gap-2">
+                <h3 className="font-display font-semibold text-paper-800 dark:text-paper-100">
+                  {cred.name}
+                </h3>
+                {cred.isDefault && (
+                  <span className="shrink-0 rounded-full bg-ember-50 px-2 py-0.5 text-xs font-medium text-ember-600 dark:bg-ember-950 dark:text-ember-400">
+                    Default
+                  </span>
+                )}
               </div>
-              <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
+              <span
+                className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${AUTH_METHOD_BADGE[cred.authMethod]}`}
+              >
                 {AUTH_METHOD_LABELS[cred.authMethod]}
-              </p>
-              <dl className="mt-2 space-y-1 text-sm text-slate-600">
+              </span>
+              <dl className="mt-3 space-y-1 font-mono text-xs text-paper-600 dark:text-paper-400">
                 <div className="flex justify-between">
-                  <dt className="text-slate-400">Region</dt>
+                  <dt className="text-paper-400">region</dt>
                   <dd>{cred.region}</dd>
                 </div>
                 {cred.authMethod === "assume_role" && (
                   <div className="flex justify-between gap-2">
-                    <dt className="shrink-0 text-slate-400">Role ARN</dt>
+                    <dt className="shrink-0 text-paper-400">role_arn</dt>
                     <dd className="truncate text-right">{cred.roleArn}</dd>
                   </div>
                 )}
                 {cred.authMethod === "static_keys" && (
                   <div className="flex justify-between">
-                    <dt className="text-slate-400">Access key</dt>
+                    <dt className="text-paper-400">access_key</dt>
                     <dd>{cred.hasStaticKeys ? "•••••••• (set)" : "not set"}</dd>
                   </div>
                 )}
               </dl>
-              <div className="mt-3 flex gap-3 border-t border-slate-100 pt-3">
+
+              {(() => {
+                const result = testResults[cred.id];
+                if (result?.status === "success") {
+                  return (
+                    <div className="mt-3 flex items-start gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-xs text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+                      <CheckIcon className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                      <div className="min-w-0">
+                        <p className="font-medium">Connected as account {result.account}</p>
+                        <p className="mt-0.5 truncate font-mono opacity-80">{result.arn}</p>
+                      </div>
+                    </div>
+                  );
+                }
+                if (result?.status === "error") {
+                  return (
+                    <div className="mt-3 flex items-start gap-2 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700 dark:bg-red-950 dark:text-red-300">
+                      <WarningIcon className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                      <span>{result.message}</span>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
+
+              <div className="mt-3 flex items-center gap-3 border-t border-paper-100 pt-3 dark:border-paper-800">
+                <button
+                  onClick={() => testConnection(cred)}
+                  disabled={testResults[cred.id]?.status === "testing"}
+                  className="flex items-center gap-1.5 text-sm font-medium text-paper-600 hover:underline disabled:opacity-60 dark:text-paper-300"
+                >
+                  {testResults[cred.id]?.status === "testing" && (
+                    <SpinnerIcon className="h-3.5 w-3.5" />
+                  )}
+                  {testResults[cred.id]?.status === "testing" ? "Testing…" : "Test connection"}
+                </button>
                 <button
                   onClick={() => setEditing(cred)}
-                  className="text-sm font-medium text-brand-600 hover:underline"
+                  className="text-sm font-medium text-ember-600 hover:underline dark:text-ember-400"
                 >
                   Edit
                 </button>
                 <button
                   onClick={() => remove(cred)}
-                  className="text-sm font-medium text-red-500 hover:underline"
+                  className="ml-auto text-sm font-medium text-red-500 hover:underline"
                 >
                   Delete
                 </button>
@@ -110,16 +200,29 @@ export default function AdminCredentials() {
             </div>
           ))}
           {credentials.length === 0 && (
-            <p className="text-sm text-slate-400">No credentials configured yet.</p>
+            <p className="text-sm text-paper-400">No credentials configured yet.</p>
           )}
         </div>
       )}
 
       {showCreate && (
-        <CredentialForm onClose={() => setShowCreate(false)} onSaved={load} />
+        <CredentialForm
+          onClose={() => setShowCreate(false)}
+          onSaved={() => {
+            load();
+            toast.success("Credential created");
+          }}
+        />
       )}
       {editing && (
-        <CredentialForm credential={editing} onClose={() => setEditing(null)} onSaved={load} />
+        <CredentialForm
+          credential={editing}
+          onClose={() => setEditing(null)}
+          onSaved={() => {
+            load();
+            toast.success("Credential updated");
+          }}
+        />
       )}
     </div>
   );
@@ -218,7 +321,7 @@ function CredentialForm({
                 value={roleArn}
                 onChange={(e) => setRoleArn(e.target.value)}
                 placeholder="arn:aws:iam::123456789012:role/estri-s3-access"
-                className="input"
+                className="input font-mono text-xs"
               />
             </Field>
             <div className="grid grid-cols-2 gap-4">
@@ -238,7 +341,7 @@ function CredentialForm({
                 />
               </Field>
             </div>
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-paper-400">
               The base identity used to assume this role comes from the pod's IRSA identity (or
               static keys below, if also provided).
             </p>
@@ -253,7 +356,7 @@ function CredentialForm({
                 value={accessKey}
                 onChange={(e) => setAccessKey(e.target.value)}
                 autoComplete="off"
-                className="input"
+                className="input font-mono text-xs"
               />
             </Field>
             <Field label={isEdit ? "Secret key (leave blank to keep)" : "Secret key"}>
@@ -263,7 +366,7 @@ function CredentialForm({
                 value={secretKey}
                 onChange={(e) => setSecretKey(e.target.value)}
                 autoComplete="off"
-                className="input"
+                className="input font-mono text-xs"
               />
             </Field>
           </div>
@@ -276,7 +379,7 @@ function CredentialForm({
                 value={accessKey}
                 onChange={(e) => setAccessKey(e.target.value)}
                 autoComplete="off"
-                className="input"
+                className="input font-mono text-xs"
               />
             </Field>
             <Field label="Base secret key (optional)">
@@ -285,18 +388,18 @@ function CredentialForm({
                 value={secretKey}
                 onChange={(e) => setSecretKey(e.target.value)}
                 autoComplete="off"
-                className="input"
+                className="input font-mono text-xs"
               />
             </Field>
           </div>
         )}
 
-        <label className="flex items-center gap-2 text-sm text-slate-700">
+        <label className="flex items-center gap-2 text-sm text-paper-700 dark:text-paper-200">
           <input type="checkbox" checked={isDefault} onChange={(e) => setIsDefault(e.target.checked)} />
           Set as default credential
         </label>
 
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
 
         <div className="flex justify-end gap-2">
           <button type="button" onClick={onClose} className="btn-secondary">
@@ -314,7 +417,9 @@ function CredentialForm({
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <label className="mb-1 block text-sm font-medium text-slate-700">{label}</label>
+      <label className="mb-1.5 block text-sm font-medium text-paper-700 dark:text-paper-300">
+        {label}
+      </label>
       {children}
     </div>
   );

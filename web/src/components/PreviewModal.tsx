@@ -30,18 +30,26 @@ export function PreviewModal({
   return (
     <Modal title={entry.name} onClose={onClose} wide>
       {kind === "image" && (
-        <img src={url} alt={entry.name} className="max-h-[70vh] w-full rounded-lg object-contain" />
+        <img
+          src={url}
+          alt={entry.name}
+          className="max-h-[70vh] w-full rounded-lg border border-paper-100 object-contain dark:border-paper-800"
+        />
       )}
       {kind === "pdf" && (
-        <iframe title={entry.name} src={url} className="h-[70vh] w-full rounded-lg border border-slate-200" />
+        <iframe
+          title={entry.name}
+          src={url}
+          className="h-[70vh] w-full rounded-lg border border-paper-200 dark:border-paper-800"
+        />
       )}
       {kind === "text" && (
-        <pre className="max-h-[70vh] overflow-auto rounded-lg bg-slate-900 p-4 text-xs text-slate-100">
+        <pre className="max-h-[70vh] overflow-auto rounded-lg bg-paper-950 p-4 font-mono text-xs text-paper-100">
           {error ?? text ?? "Loading…"}
         </pre>
       )}
       {kind === null && (
-        <p className="py-8 text-center text-sm text-slate-500">
+        <p className="py-8 text-center text-sm text-paper-500 dark:text-paper-400">
           No inline preview available for this file type. Use Download instead.
         </p>
       )}

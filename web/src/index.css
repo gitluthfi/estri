@@ -2,22 +2,53 @@
 @tailwind components;
 @tailwind utilities;
 
-html, body, #root {
+html,
+body,
+#root {
   height: 100%;
 }
 
 body {
-  @apply bg-slate-50 text-slate-900 antialiased;
+  @apply bg-paper-50 font-sans text-paper-900 antialiased dark:bg-paper-950 dark:text-paper-100;
+}
+
+::selection {
+  @apply bg-ember-200 text-paper-900;
+}
+
+/* Slim, warm-toned scrollbars instead of the default chunky OS ones. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: theme("colors.paper.300") transparent;
+}
+.dark * {
+  scrollbar-color: theme("colors.paper.700") transparent;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-thumb {
+  @apply rounded-full bg-paper-300 dark:bg-paper-700;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 @layer components {
   .input {
-    @apply w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500;
+    @apply w-full rounded-lg border border-paper-300 bg-white px-3 py-2 text-sm text-paper-900 placeholder:text-paper-400 transition-colors focus:border-ember-400 focus:outline-none focus:ring-2 focus:ring-ember-100 dark:border-paper-700 dark:bg-paper-900 dark:text-paper-100 dark:placeholder:text-paper-500 dark:focus:ring-ember-900/40;
   }
   .btn-primary {
-    @apply rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-60;
+    @apply inline-flex items-center justify-center gap-1.5 rounded-lg bg-ember-600 px-4 py-2 text-sm font-medium text-white shadow-soft transition-colors hover:bg-ember-700 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-ember-500 dark:hover:bg-ember-400;
   }
   .btn-secondary {
-    @apply rounded-lg bg-slate-100 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200;
+    @apply inline-flex items-center justify-center gap-1.5 rounded-lg border border-paper-300 bg-white px-4 py-2 text-sm font-medium text-paper-700 transition-colors hover:bg-paper-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-paper-700 dark:bg-paper-900 dark:text-paper-200 dark:hover:bg-paper-800;
+  }
+  .btn-danger {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white shadow-soft transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60;
+  }
+  .card {
+    @apply rounded-2xl border border-paper-200 bg-white shadow-card dark:border-paper-800 dark:bg-paper-900;
   }
 }

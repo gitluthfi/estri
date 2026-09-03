@@ -1,6 +1,7 @@
 import { api } from "./client";
 import type {
   AccessibleBucket,
+  AuditLogEntry,
   AWSCredential,
   Bucket,
   BucketPermission,
@@ -137,6 +138,11 @@ export const adminUpdateCredential = (
 export const adminDeleteCredential = (id: string) =>
   api.delete(`/admin/credentials/${id}`).then((r) => r.data);
 
+export const adminTestCredential = (id: string) =>
+  api
+    .post<{ account: string; arn: string; userId: string }>(`/admin/credentials/${id}/test`)
+    .then((r) => r.data);
+
 // --- admin: bucket registry ---
 export const adminListBuckets = () => api.get<Bucket[]>("/admin/buckets").then((r) => r.data);
 
@@ -148,3 +154,12 @@ export const adminCreateBucket = (data: {
 
 export const adminDeleteBucket = (id: string) =>
   api.delete(`/admin/buckets/${id}`).then((r) => r.data);
+
+// --- admin: audit log ---
+export const adminListAuditLogs = (params: { limit?: number; offset?: number; action?: string }) =>
+  api
+    .get<{ entries: AuditLogEntry[]; hasMore: boolean }>("/admin/audit-logs", { params })
+    .then((r) => r.data);
+
+export const adminListAuditActions = () =>
+  api.get<string[]>("/admin/audit-logs/actions").then((r) => r.data);

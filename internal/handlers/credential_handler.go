@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"net/http"
 
 	"estri/internal/crypto"
@@ -9,6 +10,8 @@ import (
 	"estri/internal/response"
 	"estri/internal/s3client"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -224,6 +227,45 @@ func (h *CredentialHandler) Delete(c *gin.Context) {
 	writeAudit(h.db, c, &claims.UserID, "credential.delete", id.String())
 
 	response.OK(c, gin.H{"message": "credential deleted"})
+}
+
+// Test resolves the credential's AWS identity via STS GetCallerIdentity —
+// without touching S3 — so an admin can confirm an assume-role chain
+// actually works (e.g. the target account's trust policy is correct) before
+// wiring any bucket to it. This is especially useful when estri's base
+// identity (IRSA in the account it runs in) assumes roles across several
+// other AWS accounts: it isolates "did the role assumption succeed" from
+// "does the resulting identity have S3 permissions on this bucket".
+func (h *CredentialHandler) Test(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, "invalid credential id")
+		return
+	}
+
+	var cred models.AWSCredential
+	if err := h.db.First(&cred, "id = ?", id).Error; err != nil {
+		response.Error(c, http.StatusNotFound, "credential not found")
+		return
+	}
+
+	cfg, err := h.factory.ConfigFor(c.Request.Context(), &cred)
+	if err != nil {
+		response.Error(c, http.StatusBadGateway, fmt.Sprintf("failed to resolve credentials: %v", err))
+		return
+	}
+
+	identity, err := sts.NewFromConfig(cfg).GetCallerIdentity(c.Request.Context(), &sts.GetCallerIdentityInput{})
+	if err != nil {
+		response.Error(c, http.StatusBadGateway, fmt.Sprintf("failed to assume/resolve identity: %v", err))
+		return
+	}
+
+	response.OK(c, gin.H{
+		"account": aws.ToString(identity.Account),
+		"arn":     aws.ToString(identity.Arn),
+		"userId":  aws.ToString(identity.UserId),
+	})
 }
 
 func publicCredential(cr *models.AWSCredential) gin.H {

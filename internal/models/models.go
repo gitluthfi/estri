@@ -123,11 +123,11 @@ func (p *BucketPermission) BeforeCreate(tx *gorm.DB) error {
 // AuditLog records sensitive actions (login, delete, credential changes...).
 type AuditLog struct {
 	ID        uuid.UUID  `gorm:"type:uuid;primaryKey" json:"id"`
-	UserID    *uuid.UUID `gorm:"type:uuid" json:"userId,omitempty"`
-	Action    string     `gorm:"not null" json:"action"`
+	UserID    *uuid.UUID `gorm:"type:uuid;index" json:"userId,omitempty"`
+	Action    string     `gorm:"not null;index" json:"action"`
 	Detail    string     `json:"detail"`
 	IPAddress string     `json:"ipAddress"`
-	CreatedAt time.Time  `json:"createdAt"`
+	CreatedAt time.Time  `gorm:"index" json:"createdAt"`
 }
 
 func (a *AuditLog) BeforeCreate(tx *gorm.DB) error {

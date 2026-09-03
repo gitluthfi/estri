@@ -2,6 +2,7 @@ import React from "react";
 import { Navigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import type { Role } from "../types";
+import { SpinnerIcon } from "./icons";
 
 export function ProtectedRoute({
   children,
@@ -14,8 +15,8 @@ export function ProtectedRoute({
 
   if (loading) {
     return (
-      <div className="flex h-screen items-center justify-center text-slate-500">
-        Loading…
+      <div className="flex h-screen items-center justify-center bg-paper-50 dark:bg-paper-950">
+        <SpinnerIcon className="h-5 w-5 text-paper-400" />
       </div>
     );
   }

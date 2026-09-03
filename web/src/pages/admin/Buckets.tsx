@@ -1,6 +1,11 @@
 import React, { useEffect, useState } from "react";
 import * as api from "../../api/endpoints";
 import { Modal } from "../../components/Modal";
+import { PageHeader } from "../../components/PageHeader";
+import { Skeleton } from "../../components/Skeleton";
+import { useToast } from "../../context/ToastContext";
+import { useConfirm } from "../../context/ConfirmContext";
+import { FolderIcon } from "../../components/icons";
 import type { AWSCredential, Bucket } from "../../types";
 
 export default function AdminBuckets() {
@@ -9,6 +14,8 @@ export default function AdminBuckets() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [showCreate, setShowCreate] = useState(false);
+  const toast = useToast();
+  const confirm = useConfirm();
 
   const load = () => {
     setLoading(true);
@@ -24,13 +31,19 @@ export default function AdminBuckets() {
   useEffect(load, []);
 
   const remove = async (bucket: Bucket) => {
-    if (!window.confirm(`Remove bucket "${bucket.name}" from estri? (This does not delete it in S3.)`))
-      return;
+    const ok = await confirm({
+      title: `Remove bucket "${bucket.name}" from estri?`,
+      description: "This only removes estri's registration — nothing is deleted in S3 itself.",
+      confirmLabel: "Remove",
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await api.adminDeleteBucket(bucket.id);
+      toast.success(`Removed ${bucket.name}`);
       load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to remove bucket");
+      toast.error("Failed to remove bucket", err instanceof Error ? err.message : undefined);
     }
   };
 
@@ -38,34 +51,43 @@ export default function AdminBuckets() {
 
   return (
     <div className="p-6">
-      <div className="mb-5 flex items-center justify-between">
-        <div>
-          <h1 className="text-lg font-semibold text-slate-900">Buckets</h1>
-          <p className="text-sm text-slate-500">
-            Registry of S3 buckets estri can browse, each bound to a credential profile.
-          </p>
-        </div>
-        <button
-          onClick={() => setShowCreate(true)}
-          disabled={credentials.length === 0}
-          className="btn-primary"
-          title={credentials.length === 0 ? "Create a credential first" : undefined}
-        >
-          Register bucket
-        </button>
-      </div>
+      <PageHeader
+        icon={<FolderIcon className="h-5 w-5" />}
+        title="Buckets"
+        description="Registry of S3 buckets estri can browse, each bound to a credential profile."
+        action={
+          <button
+            onClick={() => setShowCreate(true)}
+            disabled={credentials.length === 0}
+            className="btn-primary"
+            title={credentials.length === 0 ? "Create a credential first" : undefined}
+          >
+            Register bucket
+          </button>
+        }
+      />
 
       {error && (
-        <div className="mb-4 rounded-lg bg-red-50 px-4 py-2.5 text-sm text-red-600">{error}</div>
+        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300">
+          {error}
+        </div>
       )}
 
       {loading ? (
-        <p className="text-sm text-slate-400">Loading…</p>
+        <div className="card space-y-3 p-4">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="flex items-center gap-4">
+              <Skeleton className="h-4 w-32" />
+              <Skeleton className="h-4 w-20" />
+              <Skeleton className="h-4 w-28" />
+            </div>
+          ))}
+        </div>
       ) : (
-        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+        <div className="card overflow-hidden">
           <table className="w-full text-left text-sm">
             <thead>
-              <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-400">
+              <tr className="border-b border-paper-200 text-xs uppercase tracking-wide text-paper-400 dark:border-paper-800 dark:text-paper-500">
                 <th className="px-4 py-2.5 font-medium">Bucket</th>
                 <th className="px-4 py-2.5 font-medium">Region</th>
                 <th className="px-4 py-2.5 font-medium">Credential</th>
@@ -74,10 +96,24 @@ export default function AdminBuckets() {
             </thead>
             <tbody>
               {buckets.map((b) => (
-                <tr key={b.id} className="border-b border-slate-100 last:border-0">
-                  <td className="px-4 py-2.5 font-medium text-slate-800">{b.name}</td>
-                  <td className="px-4 py-2.5 text-slate-500">{b.region}</td>
-                  <td className="px-4 py-2.5 text-slate-500">{credentialName(b.credentialId)}</td>
+                <tr
+                  key={b.id}
+                  className="border-b border-paper-100 last:border-0 dark:border-paper-800"
+                >
+                  <td className="px-4 py-2.5">
+                    <div className="flex items-center gap-2.5 font-medium text-paper-800 dark:text-paper-100">
+                      <span className="flex h-7 w-7 items-center justify-center rounded-md bg-ember-50 text-ember-500 dark:bg-ember-950 dark:text-ember-400">
+                        <FolderIcon className="h-4 w-4" />
+                      </span>
+                      {b.name}
+                    </div>
+                  </td>
+                  <td className="px-4 py-2.5 font-mono text-xs text-paper-500 dark:text-paper-400">
+                    {b.region}
+                  </td>
+                  <td className="px-4 py-2.5 text-paper-500 dark:text-paper-400">
+                    {credentialName(b.credentialId)}
+                  </td>
                   <td className="px-4 py-2.5 text-right">
                     <button
                       onClick={() => remove(b)}
@@ -90,7 +126,7 @@ export default function AdminBuckets() {
               ))}
               {buckets.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="px-4 py-8 text-center text-sm text-slate-400">
+                  <td colSpan={4} className="px-4 py-8 text-center text-sm text-paper-400">
                     No buckets registered yet.
                   </td>
                 </tr>
@@ -104,7 +140,10 @@ export default function AdminBuckets() {
         <CreateBucketModal
           credentials={credentials}
           onClose={() => setShowCreate(false)}
-          onCreated={load}
+          onCreated={() => {
+            load();
+            toast.success("Bucket registered");
+          }}
         />
       )}
     </div>
@@ -145,15 +184,21 @@ function CreateBucketModal({
     <Modal title="Register bucket" onClose={onClose}>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className="mb-1 block text-sm font-medium text-slate-700">Bucket name</label>
+          <label className="mb-1.5 block text-sm font-medium text-paper-700 dark:text-paper-300">
+            Bucket name
+          </label>
           <input required value={name} onChange={(e) => setName(e.target.value)} className="input" />
         </div>
         <div>
-          <label className="mb-1 block text-sm font-medium text-slate-700">Region</label>
+          <label className="mb-1.5 block text-sm font-medium text-paper-700 dark:text-paper-300">
+            Region
+          </label>
           <input required value={region} onChange={(e) => setRegion(e.target.value)} className="input" />
         </div>
         <div>
-          <label className="mb-1 block text-sm font-medium text-slate-700">Credential profile</label>
+          <label className="mb-1.5 block text-sm font-medium text-paper-700 dark:text-paper-300">
+            Credential profile
+          </label>
           <select
             required
             value={credentialId}
@@ -167,7 +212,7 @@ function CreateBucketModal({
             ))}
           </select>
         </div>
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
         <div className="flex justify-end gap-2">
           <button type="button" onClick={onClose} className="btn-secondary">
             Cancel

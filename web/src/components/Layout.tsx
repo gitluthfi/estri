@@ -1,16 +1,50 @@
 import React from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { useTheme } from "../context/ThemeContext";
+import { Avatar } from "./Avatar";
+import {
+  ActivityIcon,
+  FolderIcon,
+  KeyIcon,
+  LogoutIcon,
+  MoonIcon,
+  SunIcon,
+  UsersIcon,
+} from "./icons";
 
-const navLinkClass = ({ isActive }: { isActive: boolean }) =>
-  `block rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-    isActive
-      ? "bg-brand-600 text-white"
-      : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-  }`;
+function NavItem({
+  to,
+  end,
+  icon,
+  children,
+}: {
+  to: string;
+  end?: boolean;
+  icon: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <NavLink
+      to={to}
+      end={end}
+      className={({ isActive }) =>
+        `group flex items-center gap-2.5 rounded-lg border-l-2 px-3 py-2 text-sm font-medium transition-colors ${
+          isActive
+            ? "border-ember-500 bg-ember-50 text-ember-700 dark:bg-ember-950/40 dark:text-ember-300"
+            : "border-transparent text-paper-600 hover:bg-paper-100 hover:text-paper-900 dark:text-paper-400 dark:hover:bg-paper-800 dark:hover:text-paper-100"
+        }`
+      }
+    >
+      <span className="opacity-80 group-hover:opacity-100">{icon}</span>
+      {children}
+    </NavLink>
+  );
+}
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuth();
+  const { theme, toggle } = useTheme();
   const navigate = useNavigate();
 
   const handleLogout = async () => {
@@ -19,53 +53,66 @@ export function Layout({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <div className="flex h-screen overflow-hidden bg-slate-50">
-      <aside className="flex w-60 shrink-0 flex-col border-r border-slate-200 bg-white">
-        <div className="flex items-center gap-2 px-5 py-5">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-600 font-bold text-white">
+    <div className="flex h-screen overflow-hidden bg-paper-50 dark:bg-paper-950">
+      <aside className="flex w-60 shrink-0 flex-col border-r border-paper-200 bg-white dark:border-paper-800 dark:bg-paper-900">
+        <div className="flex items-center gap-2.5 px-5 py-5">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-ember-600 font-display text-base font-bold text-white">
             e
           </div>
-          <span className="text-lg font-semibold tracking-tight">estri</span>
+          <span className="font-display text-lg font-semibold tracking-tight text-paper-900 dark:text-paper-50">
+            estri
+          </span>
         </div>
 
         <nav className="flex-1 space-y-1 px-3">
-          <NavLink to="/" end className={navLinkClass}>
+          <NavItem to="/" end icon={<FolderIcon className="h-4 w-4" />}>
             Browser
-          </NavLink>
+          </NavItem>
           {user?.role === "admin" && (
             <>
-              <div className="mt-4 px-3 text-xs font-semibold uppercase tracking-wider text-slate-400">
+              <div className="mb-1 mt-5 px-3 text-xs font-semibold uppercase tracking-wider text-paper-400 dark:text-paper-500">
                 Admin
               </div>
-              <NavLink to="/admin/users" className={navLinkClass}>
+              <NavItem to="/admin/users" icon={<UsersIcon className="h-4 w-4" />}>
                 Users
-              </NavLink>
-              <NavLink to="/admin/credentials" className={navLinkClass}>
+              </NavItem>
+              <NavItem to="/admin/credentials" icon={<KeyIcon className="h-4 w-4" />}>
                 AWS Credentials
-              </NavLink>
-              <NavLink to="/admin/buckets" className={navLinkClass}>
+              </NavItem>
+              <NavItem to="/admin/buckets" icon={<FolderIcon className="h-4 w-4" />}>
                 Buckets
-              </NavLink>
+              </NavItem>
+              <NavItem to="/admin/audit-log" icon={<ActivityIcon className="h-4 w-4" />}>
+                Audit Log
+              </NavItem>
             </>
           )}
         </nav>
 
-        <div className="border-t border-slate-200 p-3">
-          <div className="flex items-center gap-2 rounded-lg px-2 py-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-200 text-sm font-semibold text-slate-600">
-              {user?.username.slice(0, 1).toUpperCase()}
-            </div>
+        <div className="border-t border-paper-200 p-3 dark:border-paper-800">
+          <div className="flex items-center gap-2.5 rounded-lg px-2 py-2">
+            <Avatar name={user?.username ?? "?"} size="sm" />
             <div className="min-w-0 flex-1">
-              <div className="truncate text-sm font-medium text-slate-800">
+              <div className="truncate text-sm font-medium text-paper-800 dark:text-paper-100">
                 {user?.username}
               </div>
-              <div className="truncate text-xs capitalize text-slate-400">{user?.role}</div>
+              <div className="truncate text-xs capitalize text-paper-400 dark:text-paper-500">
+                {user?.role}
+              </div>
             </div>
+            <button
+              onClick={toggle}
+              aria-label="Toggle theme"
+              className="shrink-0 rounded-md p-1.5 text-paper-400 hover:bg-paper-100 hover:text-paper-700 dark:text-paper-500 dark:hover:bg-paper-800 dark:hover:text-paper-200"
+            >
+              {theme === "dark" ? <SunIcon className="h-4 w-4" /> : <MoonIcon className="h-4 w-4" />}
+            </button>
           </div>
           <button
             onClick={handleLogout}
-            className="mt-1 w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+            className="mt-1 flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm font-medium text-paper-500 hover:bg-paper-100 hover:text-paper-900 dark:text-paper-400 dark:hover:bg-paper-800 dark:hover:text-paper-100"
           >
+            <LogoutIcon className="h-4 w-4" />
             Sign out
           </button>
         </div>
