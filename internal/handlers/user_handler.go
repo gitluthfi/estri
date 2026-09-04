@@ -152,12 +152,19 @@ func (h *UserHandler) Delete(c *gin.Context) {
 		return
 	}
 
-	if err := h.db.Delete(&models.User{}, "id = ?", id).Error; err != nil {
+	// Bucket permissions must go first: they carry a foreign key to the
+	// user, so deleting the user while permission rows still reference it
+	// violates that constraint.
+	err = h.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("user_id = ?", id).Delete(&models.BucketPermission{}).Error; err != nil {
+			return err
+		}
+		return tx.Delete(&models.User{}, "id = ?", id).Error
+	})
+	if err != nil {
 		response.Error(c, http.StatusInternalServerError, "failed to delete user")
 		return
 	}
-
-	h.db.Where("user_id = ?", id).Delete(&models.BucketPermission{})
 
 	writeAudit(h.db, c, &claims.UserID, "user.delete", id.String())
 
